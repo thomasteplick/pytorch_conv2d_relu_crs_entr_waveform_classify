@@ -29,6 +29,16 @@ nchirps = 5
 # number of chirp parameters: chirp type, f1, f2, amplitude
 nchirpParams = 4
 
+# Print input tensor shapes in Sequential layers
+class DebugPrint(nn.Module):
+    def __init__(self, expected):
+        super(DebugPrint, self).__init__()
+        self.expected = expected
+
+    def forward(self, x):
+        print(f"wanted layer {self.expected},  have {x.shape}")
+        return x
+
 # Define ANN model, choose hidden layers and features in each layer
 class NeuralNetwork(nn.Module):
     def __init__(self, epochs, conv2dlayers):
@@ -36,38 +46,65 @@ class NeuralNetwork(nn.Module):
         self.conv2D_relu_crsEntr_stack = None
         match conv2dlayers:
             case 1:
-                self.Conv2D_relu_crsEntr_stack = nn.Sequential(
+                self.conv2D_relu_crsEntr_stack = nn.Sequential(
+                    #DebugPrint("1, Size([1,32,32])"),
                     nn.Conv2d(1, 4, 5),
+                    #DebugPrint("2, Size([[4,28,28])"),
                     nn.ReLU(),
+                    #DebugPrint("3, Size([4,28,28])"),
                     nn.MaxPool2d(kernel_size=2, stride=2),
-                    nn.flatten(),
+                    #DebugPrint("4, Size([4,14,14])"),
+                    nn.Flatten(start_dim=0),
+                    #DebugPrint("5, Size([784])"),
                     # [((32-5)+1)/2]^2 * 4 = 784
                     nn.Linear(784, nwaveforms))
+                    #DebugPrint("6, Size([4])"))
             case 2:           
                 self.conv2D_relu_crsEntr_stack = nn.Sequential(
+                    #DebugPrint("1, Size([1,32,32])"),
                     nn.Conv2d(1, 4, 5),
+                    #DebugPrint("2, Size([[4,28,28])"),
                     nn.ReLU(),
+                    #DebugPrint("3, Size([4,28,28])"),
                     nn.MaxPool2d(kernel_size=2, stride=2),
+                    #DebugPrint("4, Size([4,14,14])"),
                     nn.Conv2d(4, 8, 3),
+                    #DebugPrint("5, Size([8,12,12])"),
                     nn.ReLU(),
+                    #DebugPrint("6, Size([8,12,12])"),
                     nn.MaxPool2d(kernel_size=2, stride=2),
-                    nn.flatten(),
+                    #DebugPrint("7, Size([8,6,6])"),
+                    nn.Flatten(start_dim=0),
+                    #DebugPrint("8, Size([288])"),
                     # [((14-3)+1)/2]^2 * 8 = 288
                     nn.Linear(288, nwaveforms))
+                    #DebugPrint("9, Size([4])"))
             case 3:
                 self.conv2D_relu_crsEntr_stack = nn.Sequential(
+                    #DebugPrint("1, Size([1,32,32])"),
                     nn.Conv2d(1, 4, 5),
+                    #DebugPrint("2, Size([[4,28,28])"),
                     nn.ReLU(),
+                    #DebugPrint("3, Size([4,28,28])"),
                     nn.MaxPool2d(kernel_size=2, stride=2),
+                    #DebugPrint("4, Size([4,14,14])"),
                     nn.Conv2d(4, 8, 3),
+                    #DebugPrint("5, Size([8,12,12])"),
                     nn.ReLU(),
+                    #DebugPrint("6, Size([8,12,12])"),
                     nn.MaxPool2d(kernel_size=2, stride=2),
+                    #DebugPrint("7, Size([8,6,6])"),
                     nn.Conv2d(8, 16, 3),
+                    #DebugPrint("8, Size([16,4,4])"),
                     nn.ReLU(),
+                    #DebugPrint("9, Size([16,4,4])"),
                     nn.MaxPool2d(kernel_size=2, stride=2),
                     # [((6-3)+1)/2]^2 * 16 = 64
-                    nn.flatten(),
+                    #DebugPrint("10, Size([16,2,2])"),
+                    nn.Flatten(start_dim=0),
+                    #DebugPrint("11, Size([64])"),
                     nn.Linear(64, nwaveforms))
+                    #DebugPrint("12, Size([4])"))
             case _:
                 print(f"{conv2dlayers} is not supported: choose (1,2,3)")
         self.loss = torch.zeros(epochs, dtype=torch.float32)
@@ -101,7 +138,7 @@ class NeuralNetwork(nn.Module):
         for samp in range(nsamples):
             wvform = torch.randint(0, nwaveforms, (1,), dtype=torch.uint8).item()
             target[samp] = wvform
-            sumwvfrm = np.zeros((nwvfmSamples,1), dtype=np.float32)        
+            sumwvfrm = np.zeros(nwvfmSamples, dtype=np.float32)  
             # loop over the chirps
             for chrp in range(nchirps):
                 # chirp param number
@@ -123,16 +160,16 @@ class NeuralNetwork(nn.Module):
                 # select the chirp types and sum them, add noise to each chirp
                 match chirp_t:
                     case 0:
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[0])
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[0])
                     case 1:
                         if (freq1+freq2)%2 == 0:
-                            sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=True)
+                            sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=True)
                         else:
-                            sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=False)                            
+                            sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=False)                         
                     case 2:
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[2])
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[2])
                     case 3:
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
                     case _:
                         print(f"undefined chirp type in createSamples: {chirp_t}")
                         
@@ -140,25 +177,34 @@ class NeuralNetwork(nn.Module):
                 win = signal.windows.hamming(block)
                 SFT = signal.ShortTimeFFT(win, hop=hopTime, fs=sr, mfft=block, scale_to='magnitude')
                 aStft = abs(SFT.stft(sumwvfrm))
-                input_data[samp] = torch.from_numpy(aStft[0:imgdim,0:imgdim])
+                input_data[samp] = torch.from_numpy(aStft[0:imgdim,31:31+imgdim])
                 
                 
-    def train_(self, dataloader, loss_fn, optimizer, device):
+    def train_(self, dataloader, loss_fn, optimizer, device, epoch):
         self.train()
-        for batch, (X, y) in enumerate(dataloader):
+        # one-hot vector target 
+        target = torch.zeros(nwaveforms, dtype=torch.float32)
+        losssum = 0.0
+        count = 0
+        for (X, y) in dataloader:
             X, y = X.to(device), y.to(device)
-    
+            # target waveform has probability 1, all others have  probability 0
+            target[y.item()] = 1.0
             # Compute prediction error
             pred = self.forward(X)
-            loss = loss_fn(pred, y.squeeze(1))
-    
+            #loss = loss_fn(pred, y.squeeze(0))
+            loss = loss_fn(pred, target)
             # Backpropagation
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
             # save the loss for learning curve display
-            self.loss[batch] = loss.item()
-            
+            # clear the waveform having probabilitiy 1
+            target[y.item()] = 0
+            losssum += loss.item()
+            count += 1
+        self.loss[epoch] = losssum/count
+                    
     def test_(self, dataloader, device):
         self.eval()
         with torch.no_grad():
@@ -167,9 +213,9 @@ class NeuralNetwork(nn.Module):
                 pred = self.forward(X)
                 # loop over y tensor and determine if pred[i].argmax() is equal,
                 # count the number of samples for each class
-                for i,target in enumerate(y):
+                for _,target in enumerate(y):
                     self.count[target.item()] += 1
-                    if pred[i].argmax() == target:
+                    if pred.argmax() == target:
                         self.correct[target.item()] += 1
                         
     def displayTestResults(self):
@@ -199,16 +245,16 @@ class NeuralNetwork(nn.Module):
         # Time increment in signal samples for sliding window.
         hopTime = 2
         # sample rate = 64 samples/sec
-        sr = 64.0
+        sr = 64
         # sample period in seconds = 1/sample rate
         ts = 1.0/sr       # sample period in seconds
         nwvfmSamples = block + (block//2 - 1)*hopTime
         t = np.arange(nwvfmSamples) * ts
         tend = nwvfmSamples*ts                        
-        fig, axs = plt.subplots(nrows=2, ncols=2, layout="constrained")
+        fig, axs = plt.subplots(nrows=2, ncols=2, layout="constrained", figsize=(8.0, 6.0))
         axs = axs.flatten() 
         for wvform in range(nwaveforms):
-            sumwvfrm = np.zeros((nwvfmSamples,1), dtype=np.float32)        
+            sumwvfrm = np.zeros(nwvfmSamples, dtype=np.float32)  
             # loop over the chirps
             for chrp in range(nchirps):
                 # chirp param number
@@ -230,23 +276,23 @@ class NeuralNetwork(nn.Module):
                 # select the chirp types and sum them
                 match chirp_t:
                     case 0:
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[0])
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[0])
                     case 1:
-                        vtx0 = True 
                         if (freq1+freq2)%2 == 0:
-                            vtx0 = False 
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=vtx0)
+                            sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=True)
+                        else:
+                            sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=False)                         
                     case 2:
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[2])
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[2])
                     case 3:
-                        sumwvfrm += ampl*torch.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
                     case _:
-                        print(f"undefined chirp type in createSamples: {chirp_t}")                        
+                        print(f"undefined chirp type in createSamples: {chirp_t}")
             # Perform the STFT on this waveform and add the image to the plot
             win = signal.windows.hamming(block)
             SFT = signal.ShortTimeFFT(win, hop=hopTime, fs=sr, mfft=block, scale_to='magnitude')
             aStft = abs(SFT.stft(sumwvfrm))
-            axs[wvform].set_title(rf"Waveform {wvform+1} STFT ({SFT.m_num*SFT.T:g}$\,s$ Hamming window")
+            axs[wvform].set_title(rf"Waveform {wvform+1} STFT ({SFT.m_num*SFT.T:g}$\,s$ Hamming window)")
             axs[wvform].set_xlabel(f"Time $t$ in seconds ({SFT.p_num(nwvfmSamples)} slices, " +
                            rf"$\Delta t = {SFT.delta_t:g}\,$s)")
             axs[wvform].set_ylabel(f"Freq. $f$ in Hz ({SFT.f_pts} bins, " +
@@ -256,8 +302,7 @@ class NeuralNetwork(nn.Module):
             if wvform == 1 or wvform == 3:
                 fig.colorbar(im, ax=axs[wvform], label="Magnitude $|S_x(t, f)|$")
             # save waveform to WAV file for listening on Media Player (low frequencies not audible)
-            write(file=f"data\\waveform{wvform}.wav", rate=sr, data=sumwvfrm/np.max(sumwvfrm))
-        fig.suptitle('Waveform Short-Time Fourier Transform', y=0.95)
+            write(filename=f"data\\waveform{wvform}.wav", rate=sr, data=sumwvfrm/np.max(sumwvfrm))
         plt.show(block=True)  
                 
     def plotLearningCurve(self):
@@ -309,7 +354,7 @@ def runConv2DReluCrossEntropy():
     conv2DReLUcrossEntropyModel = "data\\conv2DReLUcrossEntropy.pth"
     waveformDataFile = "data\\waveformData.txt"
            
-    waveformData = torch.empty((nwaveforms, nchirps, nchirpParams), dtype=torch.uint8)
+    waveformData = np.zeros((nwaveforms, nchirps, nchirpParams), dtype=np.uint8)
     
     # Set waveform chirp frequencies if data file doesn't exist, otherwise read in the file
     if os.path.exists(waveformDataFile):
@@ -358,9 +403,9 @@ def runConv2DReluCrossEntropy():
                 waveformData[wvform][chrp][ichirpParam] = f1.item()
                 ichirpParam += 1
                 if f1 < freqmid:
-                    waveformData[wvform][chrp][ichirpParam] = torch.randint(freqmid, freqhi, (1,), dtype = torch.unit8)
+                    waveformData[wvform][chrp][ichirpParam] = torch.randint(freqmid, freqhi, (1,), dtype = torch.uint8)
                 else:
-                    waveformData[wvform][chrp][ichirpParam] = torch.randint(freqlo, freqmid, (1,), dtype = torch.unit8)
+                    waveformData[wvform][chrp][ichirpParam] = torch.randint(freqlo, freqmid, (1,), dtype = torch.uint8)
                 ichirpParam += 1
                 
                 # select amplitude of chirp   
@@ -399,7 +444,7 @@ def runConv2DReluCrossEntropy():
     print(f"Begin training the model: {trainbegin}")
     for t in range(epochs):
         print("*", end='', flush=True)
-        model.train_(dataloader, loss_fn, optimizer, device)
+        model.train_(dataloader, loss_fn, optimizer, device, t)
         if (t+1) % 50 == 0:
             print()
     trainend = datetime.now()
@@ -414,7 +459,7 @@ def runConv2DReluCrossEntropy():
     torch.save(model.state_dict(), conv2DReLUcrossEntropyModel)
     print("Saved PyTorch Model State to %s" % conv2DReLUcrossEntropyModel)
     
-    # Save the waveform data, waveform, f0, f1, amp1, ... amp5
+    # Save the waveform data, waveform, f0, f1, amp1, 
     with open(waveformDataFile, mode='w', encoding="utf-8") as fout:
         # loop over the waveforms
         for wvform in range(nwaveforms):
@@ -435,7 +480,8 @@ def runConv2DReluCrossEntropy():
     # Create dataset from sample tensors, normalize the input_data to (0,1]
     dataset = data.TensorDataset(input_data/maxData, target)
     # Create dataloader from dataset
-    dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=True)    
+    
     testbegin = datetime.now()   
     print(f"Begin testing the model: {testbegin}")
     model.test_(dataloader, device)

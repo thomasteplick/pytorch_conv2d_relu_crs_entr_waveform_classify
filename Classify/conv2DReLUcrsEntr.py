@@ -4,7 +4,7 @@ Artificial Neural Network (ANN) using 2D Convolution, ReLU activation functions,
 Otherwise known as Convolution Neural Network (CNN) using back-propagation of errors to train the weights and biases.
 The task is to classify four waveforms, each consisting of several chirp signals: linear, quadratic, logarithmic, hyperbolic.
 Display the learning curve and the distribution of the properties for each class.  Test the trained ANN with a separate
-set of samples and tabulate the results.
+set of samples and tabulate the results.  The STFT is used to convert the time signal to an image with frequency and time axes.
 
 The PyTorch framework was used to build the ANN.
 
@@ -19,6 +19,8 @@ import numpy as np
 import argparse
 import time
 import os.path
+import random
+import math
 from datetime import datetime
 from scipy.io.wavfile import write
 
@@ -118,7 +120,7 @@ class NeuralNetwork(nn.Module):
         logits = self.conv2D_relu_crsEntr_stack(x)
         return logits
     
-    def createSamples(self, nsamples, imgdim, input_data, target, waveformData):
+    def createSamples(self, nsamples, imgdim, input_data, target, waveformData, snr):
         # Create the input data and the target
         # block size = 64, 32 frames, 2 sample hop, no padding, 126/64 sec  
         
@@ -131,6 +133,12 @@ class NeuralNetwork(nn.Module):
         # sample period in seconds
         ts = 1.0/sr       # sample period in seconds
         
+        # calculate gaussian variance from snr: snr=10*log10(sigpwr/noisepwr)
+        div = math.pow(10.0, float(snr)/10.0)
+                
+        # window for the STFT to reduce spectral leakage
+        win = signal.windows.hamming(block)
+                
         # waveform length in samples
         nwvfmSamples = block + (block//2 - 1)*hopTime
         t = np.arange(nwvfmSamples) * ts
@@ -139,7 +147,9 @@ class NeuralNetwork(nn.Module):
             wvform = torch.randint(0, nwaveforms, (1,), dtype=torch.uint8).item()
             target[samp] = wvform
             sumwvfrm = np.zeros(nwvfmSamples, dtype=np.float32)  
-            # loop over the chirps
+            # signal power
+            sigpwr = 0.0
+                # loop over the chirps
             for chrp in range(nchirps):
                 # chirp param number
                 ichirpParam = 0
@@ -156,6 +166,7 @@ class NeuralNetwork(nn.Module):
                 
                 # get amplitude of chirp
                 ampl = waveformData[wvform][chrp][ichirpParam]
+                sigpwr += ampl
                 
                 # select the chirp types and sum them, add noise to each chirp
                 match chirp_t:
@@ -172,12 +183,18 @@ class NeuralNetwork(nn.Module):
                         sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
                     case _:
                         print(f"undefined chirp type in createSamples: {chirp_t}")
-                        
-                # Perform the STFT on this waveform and assign it to input_data
-                win = signal.windows.hamming(block)
-                SFT = signal.ShortTimeFFT(win, hop=hopTime, fs=sr, mfft=block, scale_to='magnitude')
-                aStft = abs(SFT.stft(sumwvfrm))
-                input_data[samp] = torch.from_numpy(aStft[0:imgdim,31:31+imgdim])
+             
+            # calculate standard deviation (sigma) of additive white gaussian noise (AWGN)
+            sd = math.sqrt((sigpwr/2.0)/div)
+            # create the random number generator
+            rng = np.random.default_rng()
+            # generate the gaussian variate
+            gauss = rng.normal(loc=0.0, scale=sd, size=nwvfmSamples)
+                      
+            # Perform the STFT on this waveform + AWGN and assign it to input_data
+            SFT = signal.ShortTimeFFT(win, hop=hopTime, fs=sr, mfft=block, scale_to='magnitude')
+            aStft = abs(SFT.stft(sumwvfrm + gauss))
+            input_data[samp] = torch.from_numpy(aStft[0:imgdim,31:31+imgdim])
                 
                 
     def train_(self, dataloader, loss_fn, optimizer, device, epoch):
@@ -198,11 +215,11 @@ class NeuralNetwork(nn.Module):
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            # save the loss for learning curve display
             # clear the waveform having probabilitiy 1
             target[y.item()] = 0
             losssum += loss.item()
             count += 1
+        # save the loss for learning curve display
         self.loss[epoch] = losssum/count
                     
     def test_(self, dataloader, device):
@@ -240,6 +257,8 @@ class NeuralNetwork(nn.Module):
     def  plotWaveformSTFT(self, waveformData):
         # plot the images of the STFT of the waveforms using matplotlib subplots(2,2)
         # show colormaps of the images
+        # no gaussian noise
+        # create AM waveform usimng 1000 Hz center frequency and save to WAV file
         
         block = 64
         # Time increment in signal samples for sliding window.
@@ -248,6 +267,10 @@ class NeuralNetwork(nn.Module):
         sr = 64
         # sample period in seconds = 1/sample rate
         ts = 1.0/sr       # sample period in seconds
+        
+        # window for the STFT to reduce spectral leakage
+        win = signal.windows.hamming(block)
+        
         nwvfmSamples = block + (block//2 - 1)*hopTime
         t = np.arange(nwvfmSamples) * ts
         tend = nwvfmSamples*ts                        
@@ -288,8 +311,8 @@ class NeuralNetwork(nn.Module):
                         sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
                     case _:
                         print(f"undefined chirp type in createSamples: {chirp_t}")
+                        
             # Perform the STFT on this waveform and add the image to the plot
-            win = signal.windows.hamming(block)
             SFT = signal.ShortTimeFFT(win, hop=hopTime, fs=sr, mfft=block, scale_to='magnitude')
             aStft = abs(SFT.stft(sumwvfrm))
             axs[wvform].set_title(rf"Waveform {wvform+1} STFT ({SFT.m_num*SFT.T:g}$\,s$ Hamming window)")
@@ -327,13 +350,15 @@ def runConv2DReluCrossEntropy():
     parser.add_argument('learning_rate', type=float, choices=[.001, .002, .01, .02], help="learning rate hyperparameter for training")
     parser.add_argument('momentum', type=float, choices=[.5, .6, .7, .8, .9], help="momentum hyperparameter for training")
     parser.add_argument('convolution2Dlayers', type=int, choices=[1,2,3], help="number of convolution 2D layers")
+    parser.add_argument('snr', type=int, choices=[5, 10, 15, 20], help="signal-to-noise ratio using gaussian noise")
     args = parser.parse_args()
     
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     print(f"Using {device} device")
     
-    # seed the random number generator
+    # seed the random number generators
     torch.manual_seed(int(time.time()))
+    np.random.default_rng()
     
     # each epoch consists of batch_size samples which consists of (input,target)
     epochs = args.epochs  #args.epochs
@@ -344,7 +369,13 @@ def runConv2DReluCrossEntropy():
     # momentum
     momentum = args.momentum    
     # Convolutional 2D layers
-    convolution2D_layers = args.convolution2Dlayers   
+    convolution2D_layers = args.convolution2Dlayers 
+    
+    # signal-to-noise ration (SNR)
+    snr = args.snr  
+     
+    # initialize random number generator
+    random.seed()
 
     nsamples = epochs*batch_size
     
@@ -423,18 +454,17 @@ def runConv2DReluCrossEntropy():
     # Train the model
     
     # create samples from the begin/end properties            
-    model.createSamples(nsamples, imgdim, input_data, target, waveformData)
+    model.createSamples(nsamples, imgdim, input_data, target, waveformData, snr)
         
     # find max in the input_data
     maxData = torch.max(torch.abs(input_data)).item()
-    print(f"maxData={maxData}")         
     # Create dataset from sample tensors, normalize the input_data to (0,1]
     dataset = data.TensorDataset(input_data/maxData, target)
     # Create dataloader from dataset
     dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
     
     # Display the waveform's STFT (spectrogram) using matplotlib
-    print("Display the waveform's STFT (spectrogram)")
+    print("Display the waveform's STFT (spectrogram), no additive white Gaussian noise")
     model.plotWaveformSTFT(waveformData)
        
     loss_fn = nn.CrossEntropyLoss()
@@ -473,7 +503,7 @@ def runConv2DReluCrossEntropy():
     # Test the model using different samples
     
     # create samples from the begin/end properties            
-    model.createSamples(nsamples, imgdim, input_data, target, waveformData)
+    model.createSamples(nsamples, imgdim, input_data, target, waveformData, snr)
     
     # find max in the input_data
     maxData = torch.max(torch.abs(input_data)).item()         

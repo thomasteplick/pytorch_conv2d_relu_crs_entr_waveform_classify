@@ -166,7 +166,7 @@ class NeuralNetwork(nn.Module):
                 
                 # get amplitude of chirp
                 ampl = waveformData[wvform][chrp][ichirpParam]
-                sigpwr += ampl
+                sigpwr += ampl*ampl
                 
                 # select the chirp types and sum them, add noise to each chirp
                 match chirp_t:
@@ -254,6 +254,72 @@ class NeuralNetwork(nn.Module):
         print("|{0:<8s}|{1:<8d}|{2:<8d}|{3:<8d}|".format("Totals", ttlCount, ttlCorrect, round((ttlCorrect/ttlCount*100).item())))
         print(horzBorder)
         
+    def createAmWav(self, waveformData):
+        # create Amplitude Modulation, Double-Side Band, Modulation Index = 100%, waveform
+        # center frequency is 1000 Hz
+        # Modulate with the chirp waveforms
+        # save to WAV file, double click on it to play on Media Player
+        
+        # sample rate = 4096 samples/sec
+        sr = 4096
+        # sample period in seconds = 1/sample rate
+        ts = 1.0/sr
+        
+        # center frequency in Hz
+        fc = 1000.0
+        # center frequency in radians/sec
+        radSec = 2.0*np.pi*fc
+        
+        # two second signal
+        nSamples = 2*sr
+        t = np.arange(nSamples) * ts
+        tend = nSamples*ts
+                
+        for wvform in range(nwaveforms):
+            sumwvfrm = np.zeros(nSamples, dtype=np.float32)
+            fcAmpl = 0.0
+            # loop over the chirps
+            for chrp in range(nchirps):
+                # chirp param number
+                ichirpParam = 0
+                
+                # get chirp type
+                chirp_t = waveformData[wvform][chrp][ichirpParam]
+                ichirpParam += 1
+                
+                # get f1 and f2, start and stop frequences of chirp
+                freq1 = waveformData[wvform][chrp][ichirpParam]
+                ichirpParam += 1
+                freq2 = waveformData[wvform][chrp][ichirpParam]
+                ichirpParam += 1
+                
+                # get amplitude of chirp
+                ampl = waveformData[wvform][chrp][ichirpParam]
+                fcAmpl += ampl
+                
+                # select the chirp types and sum them
+                match chirp_t:
+                    case 0:
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[0])
+                    case 1:
+                        if (freq1+freq2)%2 == 0:
+                            sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=True)
+                        else:
+                            sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[1], vertex_zero=False)                         
+                    case 2:
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[2])
+                    case 3:
+                        sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
+                    case _:
+                        print(f"undefined chirp type in createSamples: {chirp_t}")
+            # modulate the center frequency with the chirp waveforms
+            fc = fcAmpl*np.cos(radSec*t, dtype=np.float32)
+            maxdata = np.max(abs(sumwvfrm*fc))
+            ampmod = np.float32(fc*sumwvfrm/maxdata)           
+            # save AM waveform to WAV file for listening on Media Player
+            write(filename=f"data\\waveform{wvform}.wav", rate=sr, data=ampmod)
+        
+        
     def  plotWaveformSTFT(self, waveformData):
         # plot the images of the STFT of the waveforms using matplotlib subplots(2,2)
         # show colormaps of the images
@@ -324,8 +390,6 @@ class NeuralNetwork(nn.Module):
                              extent=SFT.extent(nwvfmSamples), cmap='viridis')
             if wvform == 1 or wvform == 3:
                 fig.colorbar(im, ax=axs[wvform], label="Magnitude $|S_x(t, f)|$")
-            # save waveform to WAV file for listening on Media Player (low frequencies not audible)
-            write(filename=f"data\\waveform{wvform}.wav", rate=sr, data=sumwvfrm/np.max(sumwvfrm))
         plt.show(block=True)  
                 
     def plotLearningCurve(self):
@@ -466,6 +530,9 @@ def runConv2DReluCrossEntropy():
     # Display the waveform's STFT (spectrogram) using matplotlib
     print("Display the waveform's STFT (spectrogram), no additive white Gaussian noise")
     model.plotWaveformSTFT(waveformData)
+    
+    # Create AM DSB signal using 1000 Hz center frequency, save WAV file
+    model.createAmWav(waveformData)
        
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)

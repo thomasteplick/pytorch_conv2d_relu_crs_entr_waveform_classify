@@ -1,12 +1,12 @@
 '''
 Created on Nov 14, 2026
-Artificial Neural Network (ANN) using 2D Convolution, ReLU activation functions, and Cross Entropy loss function.
+Artificial Neural Network (ANN) using 2D Convolution, Pooling, ReLU activation functions, and Cross Entropy loss function.
 Otherwise known as Convolution Neural Network (CNN) using back-propagation of errors to train the weights and biases.
-The task is to classify four waveforms, each consisting of several chirp signals: linear, quadratic, logarithmic, hyperbolic.
-Display the learning curve and the distribution of the properties for each class.  Test the trained ANN with a separate
+The task is to classify eight waveforms, each consisting of several chirp signals: linear, quadratic, logarithmic, hyperbolic.
+Display the learning curve and create an AM DSB waveform of the baseband waveforms.  Test the trained ANN with a separate
 set of samples and tabulate the results.  The STFT is used to convert the time signal to an image with frequency and time axes.
 
-The PyTorch framework was used to build the ANN.
+The PyTorch library was used to build the ANN, along with NumPy, SciPy, and Matplotlib for added support.
 
 @author: Tom Teplick
 '''
@@ -24,9 +24,9 @@ import math
 from datetime import datetime
 from scipy.io.wavfile import write
 
-nwaveforms = 4
+nwaveforms = 8
 # number of chirps in each waveform
-nchirps = 5
+nchirps = 10
 
 # number of chirp parameters: chirp type, f1, f2, amplitude
 nchirpParams = 4
@@ -324,7 +324,6 @@ class NeuralNetwork(nn.Module):
         # plot the images of the STFT of the waveforms using matplotlib subplots(2,2)
         # show colormaps of the images
         # no gaussian noise
-        # create AM waveform usimng 1000 Hz center frequency and save to WAV file
         
         block = 64
         # Time increment in signal samples for sliding window.
@@ -340,7 +339,7 @@ class NeuralNetwork(nn.Module):
         nwvfmSamples = block + (block//2 - 1)*hopTime
         t = np.arange(nwvfmSamples) * ts
         tend = nwvfmSamples*ts                        
-        fig, axs = plt.subplots(nrows=2, ncols=2, layout="constrained", figsize=(8.0, 6.0))
+        fig, axs = plt.subplots(nrows=4, ncols=2, layout="constrained", figsize=(9.0, 9.5))
         axs = axs.flatten() 
         for wvform in range(nwaveforms):
             sumwvfrm = np.zeros(nwvfmSamples, dtype=np.float32)  
@@ -388,7 +387,7 @@ class NeuralNetwork(nn.Module):
                            rf"$\Delta f = {SFT.delta_f:g}\,$Hz)")
             im = axs[wvform].imshow(aStft, origin='lower', aspect='auto',
                              extent=SFT.extent(nwvfmSamples), cmap='viridis')
-            if wvform == 1 or wvform == 3:
+            if wvform % 2:
                 fig.colorbar(im, ax=axs[wvform], label="Magnitude $|S_x(t, f)|$")
         plt.show(block=True)  
                 

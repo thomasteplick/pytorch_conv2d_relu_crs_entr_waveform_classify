@@ -333,6 +333,9 @@ class NeuralNetwork(nn.Module):
         # sample period in seconds = 1/sample rate
         ts = 1.0/sr       # sample period in seconds
         
+        lnwid = 3
+        lnsty = "solid"        
+        
         # window for the STFT to reduce spectral leakage
         win = signal.windows.hamming(block)
         
@@ -340,7 +343,9 @@ class NeuralNetwork(nn.Module):
         t = np.arange(nwvfmSamples) * ts
         tend = nwvfmSamples*ts                        
         fig, axs = plt.subplots(nrows=4, ncols=2, layout="constrained", figsize=(9.0, 9.5))
-        axs = axs.flatten() 
+        _, axs_t = plt.subplots(nrows=4, ncols=2, layout="constrained", figsize=(9.0, 9.5), sharex='all', sharey='all')
+        axs = axs.flatten()
+        axs_t = axs_t.flatten()
         for wvform in range(nwaveforms):
             sumwvfrm = np.zeros(nwvfmSamples, dtype=np.float32)  
             # loop over the chirps
@@ -376,6 +381,12 @@ class NeuralNetwork(nn.Module):
                         sumwvfrm += ampl*signal.chirp(t, f0=freq1, f1=freq2, t1=tend, method=self.chirptype[3])
                     case _:
                         print(f"undefined chirp type in createSamples: {chirp_t}")
+            
+            # time domain plots of waveforms
+            axs_t[wvform].plot(t, sumwvfrm, linewidth=lnwid, linestyle=lnsty)        
+            axs_t[wvform].set_xlabel('time (sec)')
+            axs_t[wvform].set_ylabel('Amplitude')
+            axs_t[wvform].set_title(f"Waveform {wvform+1}")
                         
             # Perform the STFT on this waveform and add the image to the plot
             SFT = signal.ShortTimeFFT(win, hop=hopTime, fs=sr, mfft=block, scale_to='magnitude')

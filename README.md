@@ -16,8 +16,9 @@ are shown in a table.  The activation function used for each fully-connected lay
 the output error and backpropagation is used to distribute the error to previous-layer weights and biases using partial derivatives and the chain rule of 
 Differential Calculus.  PyTorch handles all this transparently to the user with Tensors and Autograd.  The Cross Entropy Loss function uses Softmax to estimate
 the probabilites of each output class and then takes the negative log of these values.  The maximum of these outputs is the predicted class.  Again this is 
-done under the covers; the library handles all the details.
+done under the covers; the library handles all the details.  The user can set the signal-to-noise ratio (SNR) to one of four values.  The SNR is calculated as
 </p>
+<img width="227" height="67" alt="image" src="https://github.com/user-attachments/assets/f102f775-d8f0-4611-a1d6-465fb5a2e191" />
 <p>
 The architecture consists of the 32x32 input image, 1-3 2D convolutional layers using 3x3 and 5x5 kernels, ReLU, Max Pooling layers using 2x2 subsample, flattening the last layer of Feature Maps
 to a linear array, a fully-connected Linear layer, and the 8x1 one-hot-vector output.  The three different size convolutional layers are illustrated in the diagrams below.

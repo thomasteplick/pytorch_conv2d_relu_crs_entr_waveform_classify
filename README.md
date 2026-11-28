@@ -1,3 +1,5 @@
+<img width="896" height="252" alt="PytorchConv2DReluCrossEntropy" src="https://github.com/user-attachments/assets/6a67648a-781a-4427-bbc5-c7b3fd4f7208" />
+
 <pre>
 C:\Users\Thoma\eclipse-workspace\PyTorchWaveformClassifyReLUCrsEntr\Classify>conv2DReLUcrsEntr.py -h
 usage: conv2DReLUcrsEntr [-h] {100,200,500,1000,2000,5000,10000} {1,2,10,16,32,64} {0.001,0.002,0.01,0.02} {0.5,0.6,0.7,0.8,0.9} {1,2,3} {5,10,15,20}

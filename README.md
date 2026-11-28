@@ -1,5 +1,31 @@
-<img width="896" height="252" alt="PytorchConv2DReluCrossEntropy" src="https://github.com/user-attachments/assets/6a67648a-781a-4427-bbc5-c7b3fd4f7208" />
 
+
+<h3>PyTorch Neural Network Classification using Convolutional 2D Layers, ReLU Activation Functions, Pooling, Stochastic Gradient Descent (SGD), and Cross Entropy Loss</h3>
+<p>
+This program classifies eight composite chirp waveforms.  Each waveform has ten chirp signals of the following types: 'linear', 'quadratic', 'logarithmic', and 'hyperbolic'.
+The different chirp types are randomly chosen and are used as the input to a Short-Time Fourier Transform (STFT) implemented with the FFT algorithm.  The sample rate of the 
+waveforms is 64 smaples/sec producing the Nyquist frequency of 32 Hz.  There are 32 time-slices of the waveforms using a hop interval of 2 samples.  The 64 samples of 
+each 64-sample block are windowed with the Hamming function.  The 32 frequency bins and 32 time slices represent the input image fed to the neural network.  The image is 
+normalized by the maximum value of the image which produces a floating point number in [0,1].  The target or label is the specific wavform as an 
+integer in (0, 7), since there are eight waveforms.  This is termed one-hot vector since only one of the eight outputs is one and the rest are zeros; for example,
+a waveform 3 target would be [0,0,1,0,0,0,0,0].  The user can specify 1, 2, or 3 convolutional layers.  So the input samples consist of a 32x32 image of the STFT and the 
+target integer.  The user can specifiy the number of epochs.  The batch size is fixed at one.  The user can also specify the learning rate and momentum hyperparameters.
+After the network is trained, the Cross Entropy Loss per epoch is displayed.  The testing phase follows the training.  A different set of samples is presented to
+the neural network.  The number of sample inputs for each class and the number of correct decisions is recorded.  The test results for each class and the totals 
+are shown in a table.  The activation function used for each fully-connected layer is Rectified Linear Unit (ReLU).  The Cross Entropy Loss function is used to determine
+the output error and backpropagation is used to distribute the error to previous-layer weights and biases using partial derivatives and the chain rule of 
+Differential Calculus.  PyTorch handles all this transparently to the user with Tensors and Autograd.  The Cross Entropy Loss function uses Softmax to estimate
+the probabilites of each output class and then takes the negative log of these values.  The maximum of these outputs is the predicted class.  Again this is 
+done under the covers; the library handles all the details.
+</p>
+<p>
+The architecture consists of the 32x32 input image, 1-3 2D convolutional layers using 3x3 and 5x5 kernels, ReLU, Max Pooling layers using 2x2 subsample, flattening the last layer of Feature Maps
+to a linear array, a fully-connected Linear layer, and the 8x1 one-hot-vector output.  The three different size convolutional layers are illustrated in the diagrams below.
+</p>
+<p>
+This program uses PyTorch (without a GPU or CUDA), Python 3.13, SciPy, Matplotlib, and NumPy.
+</p>
+<img width="896" height="254" alt="PytorchConv2DReluCrossEntropy" src="https://github.com/user-attachments/assets/13ba4ff4-5020-421b-89a7-439fcc02265a" />
 <pre>
 C:\Users\Thoma\eclipse-workspace\PyTorchWaveformClassifyReLUCrsEntr\Classify>conv2DReLUcrsEntr.py -h
 usage: conv2DReLUcrsEntr [-h] {100,200,500,1000,2000,5000,10000} {1,2,10,16,32,64} {0.001,0.002,0.01,0.02} {0.5,0.6,0.7,0.8,0.9} {1,2,3} {5,10,15,20}
